@@ -16,7 +16,7 @@ type Value interface {
 
 type LRUCache struct {
 	cache map[string]*list.Element
-	ll *lisr.List
+	ll *list.List
 	maxBytes int64
 	usedBytes int64
 	// 删除键值对时的回调函数
@@ -44,6 +44,12 @@ func(this *LRUCache)RemoveOldet(){
 		this.usedBytes-=int64(len(kv.key))+int64(kv.value.Len())
 		this.ll.Remove(ele)
 		delete(this.cache,kv.key)
+		// 删除元素的回调函数不为空
+		if this.OnEvicted!=nil {
+			this.OnEvicted(kv.key,kv.value)
+		}
+
+		
 	}
 }
 
@@ -66,7 +72,7 @@ func(this *LRUCache)Add(key string,value Value){
 	}
 	
 	// 如果超过预设置内存空间，则需要删除链表末尾的节点
-	for this.usedBytes>this.maxBytes {
+	for this.maxBytes!=0&&this.usedBytes>this.maxBytes {
 		this.RemoveOldet()
 	}
 	
@@ -78,12 +84,13 @@ func (this *LRUCache) Len() int {
 }
 
 func New(maxBytes int64,OnEvicted func(key string, value Value))*LRUCache{
+	// 当maxBytes为0时，表示无限大内存空间
 	return &LRUCache{
 		cache: map[string]*list.Element{},
 		ll: list.New(),
 		maxBytes:maxBytes,
 		usedBytes:0,
 		// 删除键值对时的回调函数
-		OnEvicted:OnEvicted
+		OnEvicted:OnEvicted,
 	}
 }
