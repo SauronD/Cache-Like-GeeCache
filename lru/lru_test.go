@@ -48,7 +48,7 @@ func TestOnEvicted(t *testing.T) {
 	lru.Add("k4", String("k4"))
 
 	expect := []string{"key1", "k2"}
-
+	// reflect.DeepEqual比较两个变量是否值是否相等，特别是切片、哈希表、指针、结构体 
 	if !reflect.DeepEqual(expect, keys) {
 		t.Fatalf("Call OnEvicted failed, expect keys equals to %s", expect)
 	}
