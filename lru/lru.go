@@ -13,7 +13,7 @@ type entry struct {
 type Value interface {
 	Len()int
 }
-
+// 并发的封装在cache中进行
 type LRUCache struct {
 	cache map[string]*list.Element
 	ll *list.List
@@ -23,7 +23,7 @@ type LRUCache struct {
 	OnEvicted func(key string, value Value)
 }
 
-// Get
+// Get:涉及到链表的移动以及可能并发写操作，也必须加互斥锁
 func(this *LRUCache)Get(key string)(Value,bool){
 	if ele,ok:=this.cache[key];ok{
 		
@@ -55,7 +55,7 @@ func(this *LRUCache)RemoveOldet(){
 
 
 
-// Add
+// Add:Add中可能有map的写入操作，因此必须要实现互斥锁
 func(this *LRUCache)Add(key string,value Value){
 	if ele,ok:=this.cache[key];ok{
 		// 移动至头部

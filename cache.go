@@ -1,10 +1,10 @@
-packge likecache
+package likecache
 
 import(
-	"synx"
+	"sync"
 	"Cache-Like-GeeCache/lru"
 )
-
+// 添加互斥锁的LRUCache
 type cache struct {
 	mu         	sync.Mutex
 	lru        	*lru.LRUCache
@@ -14,7 +14,7 @@ type cache struct {
 // sync.Mutex是一个结构体，复制的锁状态和原来不同步，因此只能传引用来控制同一个互斥锁
 func(c *cache)add(key string,value ByteView){
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	defer c.mu.Unlock() 	
 	if c.lru == nil {
 		c.lru=lru.New(c.maxBytes,nil)
 	}
@@ -34,3 +34,4 @@ func(c *cache)get(key string)(value ByteView,ok bool){
 	return 
 	
 }
+

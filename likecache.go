@@ -1,0 +1,89 @@
+package likecache
+import(
+	"sync"
+	"errors"
+	"log"
+)
+
+
+type Getter interface{
+	Get(key string)([]byte,error)
+}
+
+// 定义一个函数类型，并为其实现Get方法，外部简单使用时可直接GetterFunc(f)作为Getter，避免创建一个结构体
+// 对于复杂情况，也可以定义复杂结构体，并为其实现Get方法，实现Getter接口
+type GetterFunc func(key string)([]byte,error)
+
+
+func(f GetterFunc)Get(key string)([]byte,error){
+
+	return f(key)
+}
+
+
+// likecache的主结构，负责与用户交互，并控制缓存值的存储、获取
+type Group struct{
+	name string
+	getter Getter
+	maincache cache
+}
+
+var groups =map[string]*Group{}
+
+var mu sync.RWMutex
+
+
+func NewGroup(name string,maxBytes int64,getter Getter)(*Group,error){
+	if getter==nil {
+		return nil,errors.New("GetterFunc is nil")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	g:=&Group{
+		name:name,
+		getter:getter,
+		maincache:cache{maxBytes:maxBytes},
+	}
+	groups[name]=g
+	return g,nil
+
+}
+
+func GetGroup(name string)*Group{
+	mu.RLock()
+	defer mu.RUnlock()
+	return groups[name]	
+}
+
+func(g *Group)Get(key string)(ByteView,error){
+	if g==nil {
+		return ByteView{},errors.New("nil Group")
+	}
+	if key=="" {
+		return ByteView{},errors.New("empty key")
+	}
+	if value,ok:=g.maincache.get(key);ok{
+		log.Println("[Cache] hit")
+		return value,nil
+	}
+	// key不存在，远程获取/回调函数getter获取数据
+	return g.load(key)
+}
+func(g *Group)load(key string)(ByteView,error){
+	// 单机缓存直接调用getLocally
+	return g.getLocally(key)
+}
+
+func(g *Group)getLocally(key string)(ByteView,error){
+	bytes,error:=g.getter.Get(key)
+	if error!=nil {
+		return ByteView{},error
+	}
+	value:=ByteView{cloneBytes(bytes)}
+	g.populateCache(key,value)
+	return value,nil
+}
+func(g *Group)populateCache(key string,value ByteView){
+	g.maincache.add(key,value)
+}
+
