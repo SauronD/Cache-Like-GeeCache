@@ -18,8 +18,8 @@ const (
 
 // HTTP服务器端
 type HTTPPool struct {
-	self     string
-	basePath string
+	self     string //域名(ip)+端口号
+	basePath string // /_likecache/
 	peers *consistenthash.Map
 	httpGetters map[string]*HTTPGetter
 	mu sync.Mutex
@@ -35,7 +35,7 @@ func (p *HTTPPool) Log(format string, v ...interface{}) {
 	log.Printf("[Server %s] %s", p.self, fmt.Sprintf(format, v...))
 }
 
-// 通信服务器端，http://xxx.xxx.xxx.xxx:port/basePath/groupName/key
+// 通信服务器端，收到Get请求到http://xxx.xxx.xxx.xxx:port/basePath/groupName/key
 func (p *HTTPPool) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !strings.HasPrefix(r.URL.Path, p.basePath) {
 		panic("HTTPPool serving unexpected path: " + r.URL.Path)
