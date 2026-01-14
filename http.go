@@ -10,6 +10,7 @@ import (
 
 const defaultBasePath = "/_likecache/"
 
+// HTTP服务器端
 type HTTPPool struct {
 	self     string
 	basePath string
@@ -52,4 +53,9 @@ func (p *HTTPPool) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/octet-stream")
 	// 返回的是缓存值的拷贝
 	w.Write(view.ByteSlice())
+}
+
+// HTTP客户端
+type HTTPClient struct {
+	baseURL string
 }
