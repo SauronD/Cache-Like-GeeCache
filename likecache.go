@@ -26,6 +26,7 @@ type Group struct{
 	name string
 	getter Getter
 	maincache cache
+	peers PeerPicker //peers.PeerPick(key)返回其应该问询的真实节点
 }
 
 var groups =map[string]*Group{}
@@ -69,12 +70,32 @@ func(g *Group)Get(key string)(ByteView,error){
 	// key不存在，远程获取/回调函数getter获取数据
 	return g.load(key)
 }
-func(g *Group)load(key string)(ByteView,error){
+
+func(g *Group) RegisterPeers(peer PeerPicker) {
+	if g.peers != nil {
+		panic("RegisterPeerPicker called more than once")
+	}
+	g.peers = peers
+}
+
+
+
+func(g *Group) load(key string)(ByteView,error){
+	if g.peers!=nil {
+		if peer,ok:=g.peers.PeerPick(key);ok {
+			if value, err = g.getFromPeer(peer, key); err == nil {
+				return value, nil
+			}
+			log.Println("[GeeCache] Failed to get from peer", err)
+		}
+		
+	}
+
 	// 单机缓存直接调用getLocally
 	return g.getLocally(key)
 }
 
-func(g *Group)getLocally(key string)(ByteView,error){
+func(g *Group) getLocally(key string)(ByteView,error){
 	bytes,error:=g.getter.Get(key)
 	if error!=nil {
 		return ByteView{},error
@@ -83,7 +104,14 @@ func(g *Group)getLocally(key string)(ByteView,error){
 	g.populateCache(key,value)
 	return value,nil
 }
-func(g *Group)populateCache(key string,value ByteView){
+func(g *Group) populateCache(key string,value ByteView){
 	g.maincache.add(key,value)
 }
 
+func (g *Group) getFromPeer(peer PeerGetter, key string) (ByteView, error) {
+	bytes, err := peer.Get(g.name, key)
+	if err != nil {
+		return ByteView{}, err
+	}
+	return ByteView{b: bytes}, nil
+}

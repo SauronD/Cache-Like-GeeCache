@@ -40,7 +40,7 @@ func (m *Map) Add(keys ...string) {
 	sort.Ints(m.keys)
 }
 
-// 缓存数据key，计算其在哈希环上对应的虚拟节点哈希，并返回真实节点
+// 缓存数据的key，计算其在哈希环上对应的虚拟节点哈希，并返回真实节点
 func (m *Map) Get(key string) string {
 	hash := m.hash([]byte(key))
 	idx := sort.Search(len(m.keys), func(i int) bool { return m.keys[i] >= int(hash) })

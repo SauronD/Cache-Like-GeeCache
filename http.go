@@ -6,14 +6,23 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"io"
+	"Cache-Like-GeeCache/consistenthash"
+	"sync"
 )
 
-const defaultBasePath = "/_likecache/"
+const (
+	defaultBasePath = "/_likecache/"
+	defaultReplicas = 50
+)
 
 // HTTP服务器端
 type HTTPPool struct {
 	self     string
 	basePath string
+	peers *consistenthash.Map
+	httpGetters map[string]*HTTPGetter
+	mu sync.Mutex
 }
 
 func NewHTTPPool(self string) *HTTPPool {
@@ -55,7 +64,55 @@ func (p *HTTPPool) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(view.ByteSlice())
 }
 
-// HTTP客户端
-type HTTPClient struct {
+// 向baseURL请求的功能：每个真实节点一个对应的HTTPGetter
+type HTTPGetter struct {
 	baseURL string
+}
+
+func(h *HTTPGetter)Get(groupName,key string)([]byte,error){
+	requestURL:=fmt.Sprintf(
+		"%v%v/%v",
+		h.baseURL,
+		// 对groupName和key进行转义
+		url.QueryEscape(groupName),
+		url.QueryEscape(key)
+	)
+	res,err:=http.Get(requestURL)
+	if err!= nil {
+		return nil,err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("server returned: %v", res.Status)
+	}
+	bytes, err := io.ReadAll(res.Body)
+	if err != nil {
+    	return nil, fmt.Errorf("reading response body: %v", err)
+	}
+	return bytes,nil
+}
+
+func(p *HTTPPool) PeerPick(key string)(peer PeerGetter, ok bool){
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	// p.peers.Get涉及slice的二分查找，p.httpGetters涉及map的读
+	// 这些操作都不是线程安全的，因此需要上锁
+	if peer:=p.peers.Get(key);peer!=""&&peer!=p.self {
+		p.Log("Pick peer %s", peer)
+		return p.httpGetters[peer], true
+	}
+	return 
+}
+
+// 初始化HTTPPool:一次性定义好有哪些真实节点
+func(p *HTTPPool) Set(peers ...string){
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.peers = consistenthash.New(defaultReplicas, nil)
+	p.peers.Add(peers...)
+	p.httpGetters:=make(map[string]*HTTPGetter,len(peers))
+	for _,peer := range peers {
+		p.httpGetters[peer]=&HTTPGetter{peer+p.baseURL}
+	}
+
 }
