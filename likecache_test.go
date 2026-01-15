@@ -1,6 +1,7 @@
 package likecache
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -65,4 +66,36 @@ func TestServer(t *testing.T) {
 	peers := NewHTTPPool(addr)
 	log.Println("likecache is running at", addr)
 	log.Fatal(http.ListenAndServe(addr, peers))
+}
+
+func TestClient(t *testing.T) {
+	// group相当于一个key-value表，每个节点都由一个进程管理其存储的key-value表中的部分数据
+	group, err := NewGroup("scores", 2<<10, GetterFunc(func(key string) ([]byte, error) {
+		log.Println("[SlowDB] search key", key)
+		if value, ok := db[key]; ok {
+			return []byte(value), nil
+		}
+		return nil, errors.New(fmt.Sprintf("[%s] not exists", key))
+	}))
+	if err != nil {
+		t.Fatal("group create failed")
+	}
+	// 所有的节点
+	node := map[string]string{
+		"8090": "http://localhost:8090",
+		"8091": "http://localhost:8091",
+		"8092": "http://localhost:8092",
+		"8093": "http://localhost:8093",
+	}
+
+	group.RegisterPeers()
+	var CreatCacheServer = func(addr string, addrs ...string) {
+		// addr like :http://localhost:8080，是这个节点的地址
+		httppool := NewHTTPPool(addr)
+		// addrs是一个Group下的所有节点
+		group.RegisterPeers(httppool)
+		httppool.Set(addrs...)
+		log.Println("likecache is running at", addr)
+		log.Fatal(http.ListenAndServe(addr[7:], httppool))
+	}
 }

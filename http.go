@@ -2,12 +2,13 @@ package likecache
 
 // 基于HTTP实现与其他节点的通信
 import (
+	"Cache-Like-GeeCache/consistenthash"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
-	"io"
-	"Cache-Like-GeeCache/consistenthash"
 	"sync"
 )
 
@@ -18,17 +19,17 @@ const (
 
 // HTTP服务器端
 type HTTPPool struct {
-	self     string //域名(ip)+端口号
-	basePath string // /_likecache/
-	peers *consistenthash.Map
+	self        string //域名(ip)+端口号
+	basePath    string // /_likecache/
+	peers       *consistenthash.Map
 	httpGetters map[string]*HTTPGetter
-	mu sync.Mutex
+	mu          sync.Mutex
 }
 
 func NewHTTPPool(self string) *HTTPPool {
 	return &HTTPPool{
-		self,
-		defaultBasePath,
+		self:     self,
+		basePath: defaultBasePath,
 	}
 }
 func (p *HTTPPool) Log(format string, v ...interface{}) {
@@ -69,17 +70,17 @@ type HTTPGetter struct {
 	baseURL string
 }
 
-func(h *HTTPGetter)Get(groupName,key string)([]byte,error){
-	requestURL:=fmt.Sprintf(
+func (h *HTTPGetter) Get(groupName, key string) ([]byte, error) {
+	requestURL := fmt.Sprintf(
 		"%v%v/%v",
 		h.baseURL,
 		// 对groupName和key进行转义
 		url.QueryEscape(groupName),
-		url.QueryEscape(key)
+		url.QueryEscape(key),
 	)
-	res,err:=http.Get(requestURL)
-	if err!= nil {
-		return nil,err
+	res, err := http.Get(requestURL)
+	if err != nil {
+		return nil, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
@@ -87,32 +88,32 @@ func(h *HTTPGetter)Get(groupName,key string)([]byte,error){
 	}
 	bytes, err := io.ReadAll(res.Body)
 	if err != nil {
-    	return nil, fmt.Errorf("reading response body: %v", err)
+		return nil, fmt.Errorf("reading response body: %v", err)
 	}
-	return bytes,nil
+	return bytes, nil
 }
 
-func(p *HTTPPool) PeerPick(key string)(peer PeerGetter, ok bool){
+func (p *HTTPPool) PeerPick(key string) (peer PeerGetter, ok bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	// p.peers.Get涉及slice的二分查找，p.httpGetters涉及map的读
 	// 这些操作都不是线程安全的，因此需要上锁
-	if peer:=p.peers.Get(key);peer!=""&&peer!=p.self {
+	if peer := p.peers.Get(key); peer != "" && peer != p.self {
 		p.Log("Pick peer %s", peer)
 		return p.httpGetters[peer], true
 	}
-	return 
+	return
 }
 
-// 初始化HTTPPool:一次性定义好有哪些真实节点
-func(p *HTTPPool) Set(peers ...string){
+// 初始化HTTPPool:一个Group中的每个Node能够访问的其他Node，包括其自己
+func (p *HTTPPool) Set(peers ...string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.peers = consistenthash.New(defaultReplicas, nil)
 	p.peers.Add(peers...)
-	p.httpGetters:=make(map[string]*HTTPGetter,len(peers))
-	for _,peer := range peers {
-		p.httpGetters[peer]=&HTTPGetter{peer+p.baseURL}
+	p.httpGetters = make(map[string]*HTTPGetter, len(peers))
+	for _, peer := range peers {
+		p.httpGetters[peer] = &HTTPGetter{peer + p.basePath}
 	}
 
 }

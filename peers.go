@@ -6,7 +6,6 @@ type PeerPicker interface {
 }
 
 type PeerGetter interface {
-	// 根据真实节点和key返回缓存值(拷贝)
-	Get(group *Group, key string) ([]byte, error)
+	// 当前真实节点根据/Group/key返回结果
+	Get(groupName string, key string) ([]byte, error)
 }
-
