@@ -22,7 +22,7 @@ func (f GetterFunc) Get(key string) ([]byte, error) {
 // likecache的主结构，负责与用户交互，并控制缓存值的存储、获取
 type Group struct {
 	name      string
-	getter    Getter
+	getter    Getter //getter负责从数据源获取数据，比如从数据库获得数据
 	maincache cache
 	peers     PeerPicker //peers.PeerPick(key)返回其应该问询的真实节点,在本项目中为*HTTPPool
 }
@@ -82,7 +82,7 @@ func (g *Group) load(key string) (ByteView, error) {
 			if value, err := g.getFromPeer(peer, key); err == nil {
 				return value, nil
 			} else {
-				log.Println("[GeeCache] Failed to get from peer", err)
+				log.Println("LikeCache] Failed to get from peer", err)
 			}
 		}
 

@@ -105,7 +105,7 @@ func (p *HTTPPool) PeerPick(key string) (peer PeerGetter, ok bool) {
 	return
 }
 
-// 初始化HTTPPool:一个Group中的每个Node能够访问的其他Node，包括其自己
+// 初始化HTTPPool:一个Group中的每个Node能够访问的其他Node的地址，包括其自己
 func (p *HTTPPool) Set(peers ...string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()

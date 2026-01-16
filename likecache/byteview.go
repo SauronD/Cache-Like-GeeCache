@@ -1,4 +1,3 @@
-
 package likecache
 
 // 实现一个只读数据结构ByteView用来表示缓存值，对于一些引用类型的变量，比如切片，返回引用作为值，如果修改了，那么缓存内的值也被修改了
@@ -9,21 +8,21 @@ type ByteView struct {
 }
 
 // 拷贝缓存值，并返回拷贝
-func cloneBytes(bytes []byte)[]byte{
-	b := make([]byte,len(bytes))
-	copy(b,bytes)
+func cloneBytes(bytes []byte) []byte {
+	b := make([]byte, len(bytes))
+	copy(b, bytes)
 	return b
 }
 
 // 只返回一个拷贝，避免b被修改
-func(v ByteView)ByteSlice()[]byte{
+func (v ByteView) ByteSlice() []byte {
 	return cloneBytes(v.b)
 }
 
-func(v ByteView)Len()int{
+func (v ByteView) Len() int {
 	return len(v.b)
 }
 
-func(v ByteView)String()string{
+func (v ByteView) String() string {
 	return string(v.b)
 }
