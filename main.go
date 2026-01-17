@@ -69,7 +69,7 @@ func TestClient() {
 	flag.Parse()
 
 	if api {
-		go CreateAPIServer("http://localhost:9999")
+		go CreateAPIServer("http://localhost:9001")
 	}
 	addrs := []string{}
 	for _, add := range node {
