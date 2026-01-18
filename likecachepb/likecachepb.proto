@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package geecachepb;
+// 格式为： "导入路径;包名"
+option go_package = "Cache-Like-GeeCache/likecachepb;likecachepb";
+message Request {
+  string group = 1;
+  string key = 2;
+}
+
+message Response {
+  bytes value = 1; //bytes即go中的[]byte类型，任意字节序列
+}
+
+service GroupCache {
+  rpc Get(Request) returns (Response);
+}
