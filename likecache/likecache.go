@@ -26,8 +26,8 @@ type Group struct {
 	name      string
 	getter    Getter //getter负责从数据源获取数据，比如从数据库获得数据
 	maincache cache
-	peers     PeerPicker //peers.PeerPick(key)返回其应该问询的真实节点,在本项目中为*HTTPPool
-	loader    *singleflight.Group
+	peers     PeerPicker          //peers.PeerPick(key)返回其应该问询的真实节点,在本项目中为*HTTPPool
+	loader    *singleflight.Group //控制请求的并发，即如果进行了一次请求，则期间所有后续相同的请求都等待这一请求返回结果
 }
 
 var groups = map[string]*Group{}
