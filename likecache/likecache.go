@@ -1,10 +1,11 @@
 package likecache
 
 import (
+	pb "Cache-Like-GeeCache/likecachepb"
+	"Cache-Like-GeeCache/singleflight"
 	"errors"
 	"log"
 	"sync"
-	"Cache-Like-GeeCache/singleflight"
 )
 
 type Getter interface {
@@ -26,7 +27,7 @@ type Group struct {
 	getter    Getter //getter负责从数据源获取数据，比如从数据库获得数据
 	maincache cache
 	peers     PeerPicker //peers.PeerPick(key)返回其应该问询的真实节点,在本项目中为*HTTPPool
-	loader *singleflight.Group
+	loader    *singleflight.Group
 }
 
 var groups = map[string]*Group{}
@@ -44,7 +45,7 @@ func NewGroup(name string, maxBytes int64, getter Getter) (*Group, error) {
 		name:      name,
 		getter:    getter,
 		maincache: cache{maxBytes: maxBytes},
-		loader:	   &singleflight.Group{},
+		loader:    &singleflight.Group{},
 	}
 	groups[name] = g
 	return g, nil
@@ -56,6 +57,7 @@ func GetGroup(name string) *Group {
 	defer mu.RUnlock()
 	return groups[name]
 }
+
 // 返回key
 func (g *Group) Get(key string) (ByteView, error) {
 	if g == nil {
@@ -81,7 +83,7 @@ func (g *Group) RegisterPeers(peer PeerPicker) {
 }
 
 func (g *Group) load(key string) (ByteView, error) {
-	view,err:=g.loader.Do(key,func()(interface{},error){
+	view, err := g.loader.Do(key, func() (interface{}, error) {
 		if g.peers != nil {
 			if peer, ok := g.peers.PeerPick(key); ok {
 				if value, err := g.getFromPeer(peer, key); err == nil {
@@ -89,17 +91,17 @@ func (g *Group) load(key string) (ByteView, error) {
 				} else {
 					log.Println("LikeCache] Failed to get from peer", err)
 				}
-		}
+			}
 
 		}
 		// 单机缓存直接调用getLocally
 		return g.getLocally(key)
 	})
 
-	if err!=nil {
-		return ByteView{},err	
+	if err != nil {
+		return ByteView{}, err
 	}
-	return view.(ByteView),nil
+	return view.(ByteView), nil
 }
 
 func (g *Group) getLocally(key string) (ByteView, error) {
@@ -117,9 +119,16 @@ func (g *Group) populateCache(key string, value ByteView) {
 }
 
 func (g *Group) getFromPeer(peer PeerGetter, key string) (ByteView, error) {
-	bytes, err := peer.Get(g.name, key)
+	// 构造序列化查询请求
+	req := &pb.Request{
+		Group: g.name,
+		Key:   key,
+	}
+	res := &pb.Response{}
+	// Get中进行了反序列化
+	err := peer.Get(req, res)
 	if err != nil {
 		return ByteView{}, err
 	}
-	return ByteView{b: bytes}, nil
+	return ByteView{b: res.Value}, nil
 }
