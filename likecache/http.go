@@ -22,9 +22,10 @@ const (
 
 // HTTP服务器端
 type HTTPPool struct {
-	self        string //域名(ip)+端口号
-	basePath    string // /_likecache/
-	peers       *consistenthash.Map
+	self     string //域名(ip)+端口号
+	basePath string // /_likecache/
+	peers    *consistenthash.Map
+	// 注册模式，每个HTTPGetter接口
 	httpGetters map[string]*HTTPGetter
 	mu          sync.Mutex
 }
