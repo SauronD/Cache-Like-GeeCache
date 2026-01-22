@@ -28,6 +28,7 @@ type HTTPPool struct {
 	// 注册模式，每个HTTPGetter接口
 	httpGetters map[string]*HTTPGetter
 	mu          sync.Mutex
+	// registry地址，请求可用节点
 }
 
 func NewHTTPPool(self string) *HTTPPool {
@@ -124,3 +125,6 @@ func (p *HTTPPool) Set(peers ...string) {
 	}
 
 }
+
+// 更新HTTPPool中的可用节点
+func (p *HTTPPool) UpdatePeers()
