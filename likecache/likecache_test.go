@@ -62,7 +62,7 @@ func TestServer(t *testing.T) {
 		}))
 
 	addr := "localhost:9999"
-	peers := NewHTTPPool(addr)
+	peers := NewHTTPPool(addr, "localhost:9998")
 	log.Println("likecache is running at", addr)
 	log.Fatal(http.ListenAndServe(addr, peers))
 }

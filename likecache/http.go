@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 )
@@ -119,8 +120,8 @@ func (p *HTTPPool) PeerPick(key string) (peer PeerGetter, ok bool) {
 func (p *HTTPPool) Set(peers ...string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.peers = consistenthash.New(defaultReplicas, nil)
-	p.peers.Add(peers...)
+	p.peers.Set(peers...)
+	// 重新注册存活节点
 	p.httpGetters = make(map[string]*HTTPGetter, len(peers))
 	for _, peer := range peers {
 		p.httpGetters[peer] = &HTTPGetter{peer + p.basePath}
@@ -128,7 +129,7 @@ func (p *HTTPPool) Set(peers ...string) {
 
 }
 
-// 更新HTTPPool中的可用节点:轮询registryPath,并检查是否有变化
+// 更新HTTPPool中的可用节点:查询registryPath,并检查是否有变化
 func (p *HTTPPool) UpdatePeers() {
 	res, err := http.Get(p.registryAddr)
 	defer res.Body.Close()
@@ -143,4 +144,12 @@ func (p *HTTPPool) UpdatePeers() {
 	peers := strings.Split(alive, ",")
 	// 更新哈希环
 	p.Set(peers...)
+}
+
+// 每10s轮询获取存活节点
+func (p *HTTPPool) startSyncLoop() {
+	ticker := time.NewTicker(10.0 * time.Second)
+	for range ticker.C {
+		p.UpdatePeers()
+	}
 }
