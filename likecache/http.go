@@ -29,12 +29,14 @@ type HTTPPool struct {
 	httpGetters map[string]*HTTPGetter
 	mu          sync.Mutex
 	// registry地址，请求可用节点
+	registryAddr string
 }
 
-func NewHTTPPool(self string) *HTTPPool {
+func NewHTTPPool(self, registryPath string) *HTTPPool {
 	return &HTTPPool{
-		self:     self,
-		basePath: defaultBasePath,
+		self:         self,
+		basePath:     defaultBasePath,
+		registryAddr: registryPath,
 	}
 }
 func (p *HTTPPool) Log(format string, v ...interface{}) {
@@ -113,7 +115,7 @@ func (p *HTTPPool) PeerPick(key string) (peer PeerGetter, ok bool) {
 	return
 }
 
-// 初始化HTTPPool:一个Group中的每个Node能够访问的其他Node的地址，包括其自己
+// 更新HTTPPool的节点列表：一个Group中的每个Node能够访问的其他Node的地址，包括其自己
 func (p *HTTPPool) Set(peers ...string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -126,5 +128,19 @@ func (p *HTTPPool) Set(peers ...string) {
 
 }
 
-// 更新HTTPPool中的可用节点
-func (p *HTTPPool) UpdatePeers()
+// 更新HTTPPool中的可用节点:轮询registryPath,并检查是否有变化
+func (p *HTTPPool) UpdatePeers() {
+	res, err := http.Get(p.registryAddr)
+	defer res.Body.Close()
+	if err != nil {
+		log.Println("[HTTPPool] Sync error:", err.Error())
+		return
+	}
+	alive := res.Header.Get("X-LikeCache-Servers")
+	if alive == "" {
+		log.Println("[HTTPPool] empty peers")
+	}
+	peers := strings.Split(alive, ",")
+	// 更新哈希环
+	p.Set(peers...)
+}
