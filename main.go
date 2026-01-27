@@ -2,10 +2,12 @@ package main
 
 import (
 	"Cache-Like-GeeCache/likecache"
+	"Cache-Like-GeeCache/registry"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 )
 
 var db = map[string]string{
@@ -13,11 +15,48 @@ var db = map[string]string{
 	"Jack": "589",
 	"Sam":  "567",
 }
+var registryAddr = "localhost:9000"
 
 func main() {
-	TestClient()
+	var port int
+	var api bool
+	var registry bool
+	flag.IntVar(&port, "p", -1, "Cache Server Port")
+	flag.BoolVar(&api, "api", false, "If Create API Server")
+	flag.BoolVar(&registry, "r", false, "If Create Registry Server")
+	flag.Parse()
+	if registry {
+		log.Fatalf("[Regisrey Server] error : %s", CreateRegistryServer().Error())
+		for {
+		}
+	}
+	if port == -1 {
+		log.Fatal("flag -p is required")
+	}
+	CreateCacheServer(port)
+}
+func CreateRegistryServer() error {
+	registry.HandleHTTP()
+	return http.ListenAndServe(registryAddr, nil)
+
+}
+func CreateCacheServer(port int) {
+	g, err := likecache.NewGroup("scores", 2>>10, likecache.GetterFunc(func(key string) ([]byte, error) {
+		if value, ok := db[key]; ok {
+			return []byte(value), nil
+		}
+		return nil, fmt.Errorf("[%s] not exists", key)
+	}))
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+	httpPool := likecache.NewHTTPPool("http://localhost:"+strconv.Itoa(port), registryAddr)
+	g.RegisterPeers(httpPool)
+	go httpPool.StartSyncLoop()
+	log.Fatalf("[Cache Server:%d] error: %s", port, http.ListenAndServe("localhost:"+strconv.Itoa(port), httpPool))
 }
 func TestClient() {
+
 	// group相当于一个key-value表，每个节点都由一个进程管理其存储的key-value表中的部分数据
 	group, err := likecache.NewGroup("scores", 2<<10, likecache.GetterFunc(func(key string) ([]byte, error) {
 		log.Println("[SlowDB] search key", key)
@@ -30,20 +69,20 @@ func TestClient() {
 		log.Fatal("group create failed")
 		return
 	}
-	// 所有的节点
-	node := map[int]string{
-		9090: "http://localhost:9090",
-		9091: "http://localhost:9091",
-		9092: "http://localhost:9092",
-		9093: "http://localhost:9093",
-	}
+	var port int
+	var api bool
+	var registry bool
 
-	var CreatCacheServer = func(addr string, addrs ...string) {
+	flag.IntVar(&port, "port", 8090, "Geecache server port")
+	flag.BoolVar(&api, "api", false, "Start a api server?")
+	flag.Parse()
+
+	var CreatCacheServer = func(addr string) {
 		// addr like :http://localhost:8080，是这个节点的地址
-		httppool := likecache.NewHTTPPool(addr) //httppool的baseURL:http://localhost:8080/_likecache/
+		httppool := likecache.NewHTTPPool(addr, addr+"/_likecache/registry") //httppool的baseURL:http://localhost:8080/_likecache/
 		// addrs是一个Group下的所有节点
 		group.RegisterPeers(httppool)
-		httppool.Set(addrs...)
+
 		log.Println("likecache is running at", addr)
 		log.Fatal(http.ListenAndServe(addr[7:], httppool))
 	}
@@ -61,20 +100,15 @@ func TestClient() {
 		log.Println("fontend server is running at", apiAddr)
 		log.Fatal(http.ListenAndServe(apiAddr[7:], nil))
 	}
-	var port int
-	var api bool
 
-	flag.IntVar(&port, "port", 8090, "Geecache server port")
-	flag.BoolVar(&api, "api", false, "Start a api server?")
-	flag.Parse()
+	if registry {
+		go CreateRegistryServer("http://localhost:9000")
+	}
 
 	if api {
 		go CreateAPIServer("http://localhost:9001")
 	}
-	addrs := []string{}
-	for _, add := range node {
-		addrs = append(addrs, add)
-	}
-	CreatCacheServer(node[port], addrs...)
+
+	CreatCacheServer()
 
 }

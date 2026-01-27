@@ -11,7 +11,7 @@ import (
 
 // 管理所有节点，
 type Registry struct {
-	//  注册节点的最后一次心跳时间
+	//  存储注册节点的最后一次心跳时间
 	servers map[string]time.Time
 	mu      sync.Mutex
 	timeout time.Duration

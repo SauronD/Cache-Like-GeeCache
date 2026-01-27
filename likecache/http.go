@@ -23,7 +23,7 @@ const (
 
 // HTTP服务器端
 type HTTPPool struct {
-	self     string //域名(ip)+端口号
+	self     string //域名(ip)+端口号，ListenAndServe启动的地址
 	basePath string // /_likecache/
 	peers    *consistenthash.Map
 	// 注册模式，每个HTTPGetter接口
@@ -44,13 +44,13 @@ func (p *HTTPPool) Log(format string, v ...interface{}) {
 	log.Printf("[Server %s] %s", p.self, fmt.Sprintf(format, v...))
 }
 
-// 通信服务器端，收到Get请求到http://xxx.xxx.xxx.xxx:port/basePath/groupName/key
+// 通信服务器端，收到Get请求到http://xxx.xxx.xxx.xxx:port/_likecache/groupName/key
 func (p *HTTPPool) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !strings.HasPrefix(r.URL.Path, p.basePath) {
 		panic("HTTPPool serving unexpected path: " + r.URL.Path)
 	}
 	p.Log("%s %s", r.Method, r.URL.Path)
-	// 期望的URL:/<basepath>/<groupname>/<key>
+	// 收到的的URL:/_likecache/<groupname>/<key>,去掉前缀后：<groupname>/<key>
 	parts := strings.SplitN(r.URL.Path[len(p.basePath):], "/", 2)
 	if len(parts) < 2 {
 		http.Error(w, "bad request", http.StatusBadRequest)
@@ -124,15 +124,17 @@ func (p *HTTPPool) Set(peers ...string) {
 	// 重新注册存活节点
 	p.httpGetters = make(map[string]*HTTPGetter, len(peers))
 	for _, peer := range peers {
+		// peer:http://localhost:9090
+		// basePath:/_likecache/
 		p.httpGetters[peer] = &HTTPGetter{peer + p.basePath}
 	}
-
+	log.Printf("[HTTPPool] Sync peers success: %v", peers)
 }
 
-// 更新HTTPPool中的可用节点:查询registryPath,并检查是否有变化
-func (p *HTTPPool) UpdatePeers() {
+// 查询registryPath,并检查是否有变化
+func (p *HTTPPool) updatePeers() {
 	res, err := http.Get(p.registryAddr)
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	if err != nil {
 		log.Println("[HTTPPool] Sync error:", err.Error())
 		return
@@ -147,9 +149,9 @@ func (p *HTTPPool) UpdatePeers() {
 }
 
 // 每10s轮询获取存活节点
-func (p *HTTPPool) startSyncLoop() {
+func (p *HTTPPool) StartSyncLoop() {
 	ticker := time.NewTicker(10.0 * time.Second)
 	for range ticker.C {
-		p.UpdatePeers()
+		p.updatePeers()
 	}
 }
