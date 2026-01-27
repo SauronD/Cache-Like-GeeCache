@@ -38,6 +38,7 @@ func NewHTTPPool(self, registryPath string) *HTTPPool {
 		self:         self,
 		basePath:     defaultBasePath,
 		registryAddr: registryPath,
+		peers:        &consistenthash.Map{},
 	}
 }
 func (p *HTTPPool) Log(format string, v ...interface{}) {

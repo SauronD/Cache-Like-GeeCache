@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"sort"
@@ -63,6 +64,7 @@ func (r *Registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	case "POST":
 		// 接收心跳
 		addr := req.Header.Get("X-LikeCache-Server")
+		fmt.Printf("receive heartbeat:%s", addr)
 		if addr == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -73,7 +75,7 @@ func (r *Registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// 启动Registry服务
+// 启动Registry服务,把/_likecache/registry注册到路由器
 func HandleHTTP() {
 	http.Handle(defaultPath, NewRegistry(defaultTimeOut))
 	log.Println("Registry server started at", defaultPath)
@@ -101,6 +103,7 @@ func Heartbeat(registryURL, addr string, duration time.Duration) {
 func sendHeartbeat(registryURL, addr string) error {
 	req, _ := http.NewRequest("POST", registryURL, nil)
 	req.Header.Set("X-LikeCache-Server", addr)
+	fmt.Println(req)
 	if _, err := http.DefaultClient.Do(req); err != nil {
 		return err
 	}
