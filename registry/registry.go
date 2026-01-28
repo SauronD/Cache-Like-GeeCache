@@ -64,7 +64,7 @@ func (r *Registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	case "POST":
 		// 接收心跳
 		addr := req.Header.Get("X-LikeCache-Server")
-		fmt.Printf("receive heartbeat:%s", addr)
+		fmt.Printf("receive heartbeat:%s\n", addr)
 		if addr == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -103,7 +103,7 @@ func Heartbeat(registryURL, addr string, duration time.Duration) {
 func sendHeartbeat(registryURL, addr string) error {
 	req, _ := http.NewRequest("POST", registryURL, nil)
 	req.Header.Set("X-LikeCache-Server", addr)
-	fmt.Println(req)
+
 	if _, err := http.DefaultClient.Do(req); err != nil {
 		return err
 	}

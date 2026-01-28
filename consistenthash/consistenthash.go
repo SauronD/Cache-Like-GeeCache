@@ -10,6 +10,7 @@ import (
 type Hash func([]byte) uint32
 
 type Map struct {
+	// 不同key之间的读竞争和重构的写竞争
 	rw       sync.RWMutex
 	hash     Hash
 	replicas int            // 真实节点->虚拟节点的倍数

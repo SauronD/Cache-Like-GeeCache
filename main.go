@@ -53,10 +53,11 @@ func CreateRegistryServer() error {
 
 }
 func CreateCacheServer(g *likecache.Group, port int) {
-	fmt.Println(port)
+
 	httpPool := likecache.NewHTTPPool("http://localhost:"+strconv.Itoa(port), registryAddr+"/_likecache/registry")
 	g.RegisterPeers(httpPool)
 	registry.Heartbeat(registryAddr+"/_likecache/registry", "http://localhost:"+strconv.Itoa(port), 10.0*time.Second)
+	// 轮询当前存活节点
 	go httpPool.StartSyncLoop()
 	log.Fatalf("[Cache Server:%d] error: %s", port, http.ListenAndServe("localhost:"+strconv.Itoa(port), httpPool))
 }

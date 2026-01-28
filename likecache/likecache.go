@@ -58,7 +58,7 @@ func GetGroup(name string) *Group {
 	return groups[name]
 }
 
-// 返回key
+// 返回key的value
 func (g *Group) Get(key string) (ByteView, error) {
 	if g == nil {
 		return ByteView{}, errors.New("nil Group")
@@ -66,7 +66,7 @@ func (g *Group) Get(key string) (ByteView, error) {
 	if key == "" {
 		return ByteView{}, errors.New("empty key")
 	}
-	// 先检查key是否在当前节点内存Cache中
+	// 先检查key是否在当前节点内存Cache中：此处会被并发请求
 	if value, ok := g.maincache.get(key); ok {
 		log.Println("[Cache] hit")
 		return value, nil
@@ -82,6 +82,8 @@ func (g *Group) RegisterPeers(peer PeerPicker) {
 	g.peers = peer
 }
 
+// 请求key不在当前节点的缓存中，需要向其他节点请求或拉数据库中的数据
+// 注意这里有两次合并，一个是向其他节点发送请求时，一个是被请求节点从数据库拉数据时
 func (g *Group) load(key string) (ByteView, error) {
 	view, err := g.loader.Do(key, func() (interface{}, error) {
 		if g.peers != nil {

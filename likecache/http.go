@@ -38,7 +38,7 @@ func NewHTTPPool(self, registryPath string) *HTTPPool {
 		self:         self,
 		basePath:     defaultBasePath,
 		registryAddr: registryPath,
-		peers:        &consistenthash.Map{},
+		peers:        consistenthash.New(defaultReplicas, nil),
 	}
 }
 func (p *HTTPPool) Log(format string, v ...interface{}) {
@@ -130,6 +130,7 @@ func (p *HTTPPool) Set(peers ...string) {
 		p.httpGetters[peer] = &HTTPGetter{peer + p.basePath}
 	}
 	log.Printf("[HTTPPool] Sync peers success: %v", peers)
+	log.Println(p.peers)
 }
 
 // 查询registryPath,并检查是否有变化
@@ -151,6 +152,7 @@ func (p *HTTPPool) updatePeers() {
 
 // 每10s轮询获取存活节点
 func (p *HTTPPool) StartSyncLoop() {
+	p.updatePeers()
 	ticker := time.NewTicker(10.0 * time.Second)
 	for range ticker.C {
 		p.updatePeers()
