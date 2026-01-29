@@ -12,3 +12,11 @@ singleflight实现了每个节点在向同一个节点请求一个key时，这�
 
 
 New Feat3:通信协议换RPC
+
+
+
+New Feat4:LRUCache的分段锁
+访问一个节点中的LRUCache中的key-value时，不同key竞争同一把互斥锁，把LRUCache分段，对每个段分别上锁
+
+New Feat5:sync.Pool复用对象
+临时对象的复用，避免GC的频繁触发影响性能

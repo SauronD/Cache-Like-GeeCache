@@ -96,7 +96,7 @@ func (g *Group) load(key string) (ByteView, error) {
 			}
 
 		}
-		// 单机缓存直接调用getLocally
+		// key对应节点是当前节点或从远程节点获取失败时，比如目标节点下线，也在当前节点处拉去数据并缓存
 		return g.getLocally(key)
 	})
 

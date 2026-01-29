@@ -130,7 +130,7 @@ func (p *HTTPPool) Set(peers ...string) {
 		p.httpGetters[peer] = &HTTPGetter{peer + p.basePath}
 	}
 	log.Printf("[HTTPPool] Sync peers success: %v", peers)
-	log.Println(p.peers)
+
 }
 
 // 查询registryPath,并检查是否有变化
