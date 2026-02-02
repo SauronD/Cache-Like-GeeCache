@@ -16,6 +16,13 @@ var db = map[string]string{
 	"Jack": "589",
 	"Sam":  "567",
 }
+
+var db2 = map[string]string{
+	"Tom":  "16",
+	"Jack": "17",
+	"Sam":  "18",
+}
+
 var registryAddr = "http://localhost:9000"
 
 func main() {
@@ -32,6 +39,7 @@ func main() {
 	if port == -1 {
 		log.Fatal("flag -p is required")
 	}
+	// db只会被并发读，golang中的map并发读是安全的
 	g, err := likecache.NewGroup("scores", 2>>10, likecache.GetterFunc(func(key string) ([]byte, error) {
 		if value, ok := db[key]; ok {
 			return []byte(value), nil
@@ -46,6 +54,9 @@ func main() {
 	}
 	CreateCacheServer(g, port)
 }
+
+// 创建Group的端口:/
+
 func CreateRegistryServer() error {
 	registry.HandleHTTP()
 
@@ -77,6 +88,7 @@ func CreateAPIServer(g *likecache.Group) {
 		}
 		w.Write(val.ByteSlice())
 	}))
+
 	log.Printf("[API Server: http://localhost:%d] is running", port)
 	log.Printf("[API Server] error:%s", http.ListenAndServe("localhost:"+strconv.Itoa(port), nil).Error())
 

@@ -51,6 +51,33 @@ func (p *HTTPPool) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		panic("HTTPPool serving unexpected path: " + r.URL.Path)
 	}
 	p.Log("%s %s", r.Method, r.URL.Path)
+	// 创建一个新grtoup post：/api/creategroup
+
+	if strings.HasPrefix(r.URL.Path, "/_likecache/api/creategroup") {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Only Allowed POST Method", http.StatusBadRequest)
+			return
+		}
+		err := r.ParseForm()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		groupName := r.FormValue("GroupName")
+		if groupName == "" {
+			http.Error(w, "empty group name", http.StatusBadRequest)
+			return
+		}
+		if g := GetGroup(groupName); g == nil {
+			http.Error(w, fmt.Sprintf("Group[%s] already exists\n", groupName), http.StatusBadRequest)
+			return
+		}
+		g, err := NewGroup(groupName, 2<<10, GetterFunc(func(key string) ([]byte, error) {
+			return nil, nil
+		}))
+		g.RegisterPeers(p)
+	}
+
 	// 收到的的URL:/_likecache/<groupname>/<key>,去掉前缀后：<groupname>/<key>
 	parts := strings.SplitN(r.URL.Path[len(p.basePath):], "/", 2)
 	if len(parts) < 2 {

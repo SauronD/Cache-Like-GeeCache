@@ -71,7 +71,7 @@ func (g *Group) Get(key string) (ByteView, error) {
 		log.Println("[Cache] hit")
 		return value, nil
 	}
-	// key不存在，远程获取/回调函数getter获取数据
+	// key不存在，远程获取/回调函数getter获取数据：DB
 	return g.load(key)
 }
 
@@ -82,8 +82,9 @@ func (g *Group) RegisterPeers(peer PeerPicker) {
 	g.peers = peer
 }
 
-// 请求key不在当前节点的缓存中，需要向其他节点请求或拉数据库中的数据
+// loadl 处理请求key不在当前节点的缓存中，需要向其他节点请求或拉数据库中的数据
 // 注意这里有两次合并，一个是向其他节点发送请求时，一个是被请求节点从数据库拉数据时
+// 并且只能合并相同key，不同key的获取不会被阻塞，依然是并发处理。
 func (g *Group) load(key string) (ByteView, error) {
 	view, err := g.loader.Do(key, func() (interface{}, error) {
 		if g.peers != nil {
