@@ -103,6 +103,13 @@ func (p *HTTPPool) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(body)
 }
 
+// 在此节点上创建一个新Group：
+func (h *HTTPPool) creategroup(groupName string) {
+	g, err := NewGroup(groupName, 2>>10, GetterFunc(func(key string) ([]byte, error) {
+		return nil, nil
+	}))
+}
+
 // 向baseURL请求的功能：每个真实节点一个对应的HTTPGetter
 type HTTPGetter struct {
 	baseURL string

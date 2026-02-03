@@ -19,10 +19,20 @@ func TestGetter(t *testing.T) {
 	}
 }
 
+var dbs = map[string]map[string]string{
+	"id": map[string]string{
+		"Tom":  "m001",
+		"Jack": "m002",
+		"Sam":  "m003",
+		"Lucy": "f004",
+	},
+}
+
 var db = map[string]string{
 	"Tom":  "630",
 	"Jack": "589",
 	"Sam":  "567",
+	"Lucy": "599",
 }
 
 func TestGet(t *testing.T) {
