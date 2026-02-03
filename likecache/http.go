@@ -52,31 +52,32 @@ func (p *HTTPPool) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	p.Log("%s %s", r.Method, r.URL.Path)
 	// 创建一个新grtoup post：/api/creategroup
-
-	if strings.HasPrefix(r.URL.Path, "/_likecache/api/creategroup") {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Only Allowed POST Method", http.StatusBadRequest)
-			return
-		}
-		err := r.ParseForm()
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		groupName := r.FormValue("GroupName")
-		if groupName == "" {
-			http.Error(w, "empty group name", http.StatusBadRequest)
-			return
-		}
-		if g := GetGroup(groupName); g == nil {
-			http.Error(w, fmt.Sprintf("Group[%s] already exists\n", groupName), http.StatusBadRequest)
-			return
-		}
-		g, err := NewGroup(groupName, 2<<10, GetterFunc(func(key string) ([]byte, error) {
-			return nil, nil
-		}))
-		g.RegisterPeers(p)
-	}
+	// if strings.HasPrefix(r.URL.Path, "/_likecache/api/creategroup") {
+	// 	if r.Method != http.MethodPost {
+	// 		http.Error(w, "Only Allowed POST Method", http.StatusBadRequest)
+	// 		return
+	// 	}
+	// 	err := r.ParseForm()
+	// 	if err != nil {
+	// 		http.Error(w, err.Error(), http.StatusInternalServerError)
+	// 		return
+	// 	}
+	// 	groupName := r.FormValue("GroupName")
+	// 	if groupName == "" {
+	// 		http.Error(w, "empty group name", http.StatusBadRequest)
+	// 		return
+	// 	}
+	// 	if g := GetGroup(groupName); g != nil {
+	// 		http.Error(w, fmt.Sprintf("Group[%s] already exists\n", groupName), http.StatusBadRequest)
+	// 		return
+	// 	}
+	// 	err = p.creategroup(groupName)
+	// 	if err != nil {
+	// 		http.Error(w, err.Error(), http.StatusInternalServerError)
+	// 	}
+	// 	w.Header().Set("Create-Group", "success")
+	// 	return
+	// }
 
 	// 收到的的URL:/_likecache/<groupname>/<key>,去掉前缀后：<groupname>/<key>
 	parts := strings.SplitN(r.URL.Path[len(p.basePath):], "/", 2)
@@ -101,13 +102,6 @@ func (p *HTTPPool) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/octet-stream")
 	// 返回的是缓存值的拷贝
 	w.Write(body)
-}
-
-// 在此节点上创建一个新Group：
-func (h *HTTPPool) creategroup(groupName string) {
-	g, err := NewGroup(groupName, 2>>10, GetterFunc(func(key string) ([]byte, error) {
-		return nil, nil
-	}))
 }
 
 // 向baseURL请求的功能：每个真实节点一个对应的HTTPGetter

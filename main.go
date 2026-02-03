@@ -25,6 +25,23 @@ var db2 = map[string]string{
 
 var registryAddr = "http://localhost:9000"
 
+// 配置所有Group的连接
+func initDB(p *likecache.HTTPPool) {
+	// 注册配置Group和db连接
+	g, err := likecache.NewGroup("scores", 2<<10, likecache.MapGetter(db))
+	if err != nil {
+		panic(err)
+	}
+	g.RegisterPeers(p)
+
+	g, err = likecache.NewGroup("age", 2<<10, likecache.MapGetter(db2))
+	if err != nil {
+		panic(err)
+	}
+	g.RegisterPeers(p)
+
+}
+
 func main() {
 	var port int
 	var api bool
@@ -33,6 +50,7 @@ func main() {
 	flag.BoolVar(&api, "api", false, "If Create API Server")
 	flag.BoolVar(&registry, "r", false, "If Create Registry Server")
 	flag.Parse()
+
 	if registry {
 		log.Fatalf("[Regisrey Server] error : %s", CreateRegistryServer().Error())
 	}
@@ -40,7 +58,7 @@ func main() {
 		log.Fatal("flag -p is required")
 	}
 	// db只会被并发读，golang中的map并发读是安全的
-	g, err := likecache.NewGroup("scores", 2>>10, likecache.GetterFunc(func(key string) ([]byte, error) {
+	g, err := likecache.NewGroup("scores", 2<<10, likecache.GetterFunc(func(key string) ([]byte, error) {
 		if value, ok := db[key]; ok {
 			return []byte(value), nil
 		}
@@ -55,7 +73,39 @@ func main() {
 	CreateCacheServer(g, port)
 }
 
-// 创建Group的端口:/
+func TestRemoteCreateGroup() {
+	var port int
+	var api bool
+	var regis bool
+	flag.IntVar(&port, "p", -1, "Cache Server Port")
+	flag.BoolVar(&api, "api", false, "If Create API Server")
+	flag.BoolVar(&regis, "r", false, "If Create Registry Server")
+	flag.Parse()
+
+	if regis {
+		log.Fatalf("[Regisrey Server] error : %s", CreateRegistryServer().Error())
+	}
+	if port == -1 {
+		log.Fatal("flag -p is required")
+	}
+
+	if api {
+		g, err := likecache.NewGroup("api", 1, nil)
+		if err != nil {
+			log.Panicln(err.Error())
+			return
+		}
+		go CreateAPIServer(g)
+	}
+	httpPool := likecache.NewHTTPPool("http://localhost:"+strconv.Itoa(port), registryAddr+"/_likecache/registry")
+	// 创建每个节点的所有Group:
+	initDB(httpPool)
+
+	registry.Heartbeat(registryAddr+"/_likecache/registry", "http://localhost:"+strconv.Itoa(port), 10.0*time.Second)
+	// 轮询当前存活节点
+	go httpPool.StartSyncLoop()
+	log.Fatalf("[Cache Server:%d] error: %s", port, http.ListenAndServe("localhost:"+strconv.Itoa(port), httpPool))
+}
 
 func CreateRegistryServer() error {
 	registry.HandleHTTP()
