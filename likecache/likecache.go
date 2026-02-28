@@ -82,7 +82,7 @@ func (g *Group) RegisterPeers(peer PeerPicker) {
 	g.peers = peer
 }
 
-// loadl 处理请求key不在当前节点的缓存中，需要向其他节点请求或拉数据库中的数据
+// load 处理请求key不在当前节点的缓存中，需要向其他节点请求或拉数据库中的数据
 // 注意这里有两次合并，一个是向其他节点发送请求时，一个是被请求节点从数据库拉数据时
 // 并且只能合并相同key，不同key的获取不会被阻塞，依然是并发处理。
 func (g *Group) load(key string) (ByteView, error) {
