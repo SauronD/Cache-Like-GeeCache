@@ -26,23 +26,22 @@ var db2 = map[string]string{
 var registryAddr = "http://localhost:9000"
 
 // 配置所有Group的连接
-func initDB(p *likecache.HTTPPool) {
+func initDB(p *likecache.HTTPPool, dbs map[string]map[string]string) {
 	// 注册配置Group和db连接
-	g, err := likecache.NewGroup("scores", 2<<10, likecache.MapGetter(db))
-	if err != nil {
-		panic(err)
+	for groupName, db := range dbs {
+		g, err := likecache.NewGroup(groupName, 2<<10, likecache.MapGetter(db))
+		if err != nil {
+			panic(err)
+		}
+		g.RegisterPeers(p)
 	}
-	g.RegisterPeers(p)
-
-	g, err = likecache.NewGroup("age", 2<<10, likecache.MapGetter(db2))
-	if err != nil {
-		panic(err)
-	}
-	g.RegisterPeers(p)
 
 }
 
 func main() {
+	TestMultipleGroup()
+}
+func TestSingleGroup() {
 	var port int
 	var api bool
 	var registry bool
@@ -68,12 +67,12 @@ func main() {
 		log.Fatalln(err.Error())
 	}
 	if api {
-		go CreateAPIServer(g)
+		go CreateAPIServer()
 	}
 	CreateCacheServer(g, port)
 }
 
-func TestRemoteCreateGroup() {
+func TestMultipleGroup() {
 	var port int
 	var api bool
 	var regis bool
@@ -83,24 +82,18 @@ func TestRemoteCreateGroup() {
 	flag.Parse()
 
 	if regis {
-		log.Fatalf("[Regisrey Server] error : %s", CreateRegistryServer().Error())
+		go func() { log.Printf("[Regisrey Server] error : %s", CreateRegistryServer().Error()) }()
 	}
 	if port == -1 {
 		log.Fatal("flag -p is required")
 	}
 
-	if api {
-		g, err := likecache.NewGroup("api", 1, nil)
-		if err != nil {
-			log.Panicln(err.Error())
-			return
-		}
-		go CreateAPIServer(g)
-	}
 	httpPool := likecache.NewHTTPPool("http://localhost:"+strconv.Itoa(port), registryAddr+"/_likecache/registry")
 	// 创建每个节点的所有Group:
-	initDB(httpPool)
-
+	initDB(httpPool, map[string]map[string]string{"scores": db, "age": db2})
+	if api {
+		go CreateAPIServer()
+	}
 	registry.Heartbeat(registryAddr+"/_likecache/registry", "http://localhost:"+strconv.Itoa(port), 10.0*time.Second)
 	// 轮询当前存活节点
 	go httpPool.StartSyncLoop()
@@ -122,25 +115,32 @@ func CreateCacheServer(g *likecache.Group, port int) {
 	go httpPool.StartSyncLoop()
 	log.Fatalf("[Cache Server:%d] error: %s", port, http.ListenAndServe("localhost:"+strconv.Itoa(port), httpPool))
 }
-func CreateAPIServer(g *likecache.Group) {
+func CreateAPIServer() {
 	// API Server默认在9999接口
 	port := 9999
-	http.Handle("/api", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+	apiMux := http.NewServeMux()
+
+	apiMux.Handle("/api", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
-			http.Error(w, "Method not Allowed,use GET:?key=", http.StatusBadRequest)
+			http.Error(w, "Method not Allowed,use GET:?group=&key=", http.StatusBadRequest)
 			return
 		}
+		groupName := r.URL.Query().Get("group")
+		g := likecache.GetGroup(groupName)
+
 		key := r.URL.Query().Get("key")
 
 		val, err := g.Get(key)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 		w.Write(val.ByteSlice())
 	}))
 
 	log.Printf("[API Server: http://localhost:%d] is running", port)
-	log.Printf("[API Server] error:%s", http.ListenAndServe("localhost:"+strconv.Itoa(port), nil).Error())
+	log.Printf("[API Server] error:%s", http.ListenAndServe("localhost:"+strconv.Itoa(port), apiMux).Error())
 
 }
 func TestClient() {

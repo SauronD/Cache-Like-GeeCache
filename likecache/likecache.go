@@ -25,8 +25,8 @@ func (f GetterFunc) Get(key string) ([]byte, error) {
 type Group struct {
 	name      string
 	getter    Getter //getter负责从数据源获取数据，比如从数据库获得数据
-	maincache cache
-	peers     PeerPicker          //peers.PeerPick(key)返回其应该问询的真实节点,在本项目中为*HTTPPool
+	maincache *cache
+	peers     PeerPicker          //peers.PeerPick(key)返回其应该问询的真实节点,peers在本项目中为*HTTPPool
 	loader    *singleflight.Group //控制请求的并发，即如果进行了一次请求，则期间所有后续相同的请求都等待这一请求返回结果
 }
 
@@ -44,7 +44,7 @@ func NewGroup(name string, maxBytes int64, getter Getter) (*Group, error) {
 	g := &Group{
 		name:      name,
 		getter:    getter,
-		maincache: cache{maxBytes: maxBytes},
+		maincache: NewCache(maxBytes),
 		loader:    &singleflight.Group{},
 	}
 	groups[name] = g
@@ -58,7 +58,7 @@ func GetGroup(name string) *Group {
 	return groups[name]
 }
 
-// 返回key的value
+// 返回key的value：整个查询流程中的第一步
 func (g *Group) Get(key string) (ByteView, error) {
 	if g == nil {
 		return ByteView{}, errors.New("nil Group")
@@ -88,11 +88,12 @@ func (g *Group) RegisterPeers(peer PeerPicker) {
 func (g *Group) load(key string) (ByteView, error) {
 	view, err := g.loader.Do(key, func() (interface{}, error) {
 		if g.peers != nil {
+			// 查找key对应的物理节点地址：
 			if peer, ok := g.peers.PeerPick(key); ok {
 				if value, err := g.getFromPeer(peer, key); err == nil {
 					return value, nil
 				} else {
-					log.Println("LikeCache] Failed to get from peer", err)
+					log.Println("[LikeCache] Failed to get from peer", err)
 				}
 			}
 

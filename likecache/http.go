@@ -51,33 +51,6 @@ func (p *HTTPPool) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		panic("HTTPPool serving unexpected path: " + r.URL.Path)
 	}
 	p.Log("%s %s", r.Method, r.URL.Path)
-	// 创建一个新grtoup post：/api/creategroup
-	// if strings.HasPrefix(r.URL.Path, "/_likecache/api/creategroup") {
-	// 	if r.Method != http.MethodPost {
-	// 		http.Error(w, "Only Allowed POST Method", http.StatusBadRequest)
-	// 		return
-	// 	}
-	// 	err := r.ParseForm()
-	// 	if err != nil {
-	// 		http.Error(w, err.Error(), http.StatusInternalServerError)
-	// 		return
-	// 	}
-	// 	groupName := r.FormValue("GroupName")
-	// 	if groupName == "" {
-	// 		http.Error(w, "empty group name", http.StatusBadRequest)
-	// 		return
-	// 	}
-	// 	if g := GetGroup(groupName); g != nil {
-	// 		http.Error(w, fmt.Sprintf("Group[%s] already exists\n", groupName), http.StatusBadRequest)
-	// 		return
-	// 	}
-	// 	err = p.creategroup(groupName)
-	// 	if err != nil {
-	// 		http.Error(w, err.Error(), http.StatusInternalServerError)
-	// 	}
-	// 	w.Header().Set("Create-Group", "success")
-	// 	return
-	// }
 
 	// 收到的的URL:/_likecache/<groupname>/<key>,去掉前缀后：<groupname>/<key>
 	parts := strings.SplitN(r.URL.Path[len(p.basePath):], "/", 2)
@@ -109,10 +82,11 @@ type HTTPGetter struct {
 	baseURL string
 }
 
-// 向节点请求Group:key，将返回值反序列化放入out中
+// 向h对应节点请求Group:key，将返回值反序列化放入out中
 func (h *HTTPGetter) Get(in *pb.Request, out *pb.Response) error {
 	requestURL := fmt.Sprintf(
 		"%v%v/%v",
+		// h.baseURL: http://localhost:9001/_likecache/
 		h.baseURL,
 		// 对groupName和key进行转义
 		url.QueryEscape(in.GetGroup()),
@@ -133,6 +107,7 @@ func (h *HTTPGetter) Get(in *pb.Request, out *pb.Response) error {
 	return nil
 }
 
+// 根据key在哈希环上映射，返回映射到节点的URL，ok表示是否为一个远程节点
 func (p *HTTPPool) PeerPick(key string) (peer PeerGetter, ok bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
