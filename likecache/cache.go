@@ -28,7 +28,7 @@ func NewCache(maxBytes int64) *cache {
 
 // 计算不同key应该存放的shard:
 func (c *cache) getShard(key string) *shard {
-	// FNV 初始偏移量
+	// FNV-1a 32-bit初始偏移量
 	var hash uint32 = 2166136261
 	for i := 0; i < len(key); i++ {
 		hash ^= uint32(key[i])
@@ -37,7 +37,7 @@ func (c *cache) getShard(key string) *shard {
 	return c.shards[hash%uint32(defaultShardCount)]
 }
 
-// 4. 对外暴露的 add 和 get 方法
+// 对外暴露的add和get方法
 // 它们不再自己加锁，而是将任务代理给算出来的目标shard
 func (c *cache) add(key string, value ByteView) {
 	shard := c.getShard(key)

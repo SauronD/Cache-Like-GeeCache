@@ -128,7 +128,10 @@ func CreateAPIServer() {
 		}
 		groupName := r.URL.Query().Get("group")
 		g := likecache.GetGroup(groupName)
-
+		if g == nil {
+			http.Error(w, "No such group", http.StatusBadRequest)
+			return
+		}
 		key := r.URL.Query().Get("key")
 
 		val, err := g.Get(key)

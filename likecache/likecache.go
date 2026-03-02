@@ -28,6 +28,7 @@ type Group struct {
 	maincache *cache
 	peers     PeerPicker          //peers.PeerPick(key)返回其应该问询的真实节点,peers在本项目中为*HTTPPool
 	loader    *singleflight.Group //控制请求的并发，即如果进行了一次请求，则期间所有后续相同的请求都等待这一请求返回结果
+	bf        *BloomFilter
 }
 
 var groups = map[string]*Group{}
@@ -46,6 +47,7 @@ func NewGroup(name string, maxBytes int64, getter Getter) (*Group, error) {
 		getter:    getter,
 		maincache: NewCache(maxBytes),
 		loader:    &singleflight.Group{},
+		bf:        NewBloomFilter(100000, 0.01),
 	}
 	groups[name] = g
 	return g, nil
