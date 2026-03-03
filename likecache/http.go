@@ -4,6 +4,7 @@ package likecache
 import (
 	"Cache-Like-GeeCache/consistenthash"
 	pb "Cache-Like-GeeCache/likecachepb"
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -65,21 +66,40 @@ func (p *HTTPPool) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("no group[%s]", groupName), http.StatusNotFound)
 		return
 	}
-	view, error := group.Get(key)
-	// 获取数据后序列化为protobuf格式
-	body, err := proto.Marshal(&pb.Response{Value: view.ByteSlice()})
+	view, err := group.Get(key)
 	if err != nil {
-		http.Error(w, error.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// 对象池复用优化序列化
+	buf := sliceBytesPool.Get().(*[]byte)
+	defer func() {
+		if cap(*buf) <= 64*1024 {
+			*buf = (*buf)[:0]
+			sliceBytesPool.Put(buf)
+		}
+	}()
+
+	// 获取数据后序列化为protobuf格式
+	body := &pb.Response{Value: view.ByteSlice()}
+	*buf, err = proto.MarshalOptions{}.MarshalAppend(*buf, body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/octet-stream")
 	// 返回的是缓存值的拷贝
-	w.Write(body)
+	w.Write(*buf)
 }
 
 // 向baseURL请求的功能：每个真实节点一个对应的HTTPGetter
 type HTTPGetter struct {
 	baseURL string
+}
+
+// 进一步优化通信协议：
+type RPCGetter struct {
 }
 
 // 向h对应节点请求Group:key，将返回值反序列化放入out中
@@ -100,8 +120,18 @@ func (h *HTTPGetter) Get(in *pb.Request, out *pb.Response) error {
 	if res.StatusCode != http.StatusOK {
 		return fmt.Errorf("server returned: %v", res.Status)
 	}
-	bytes, err := io.ReadAll(res.Body)
-	if err = proto.Unmarshal(bytes, out); err != nil {
+	buf := bufferPool.Get().(*bytes.Buffer)
+	defer func() {
+		buf.Reset()
+		if buf.Cap() <= 64*1024 {
+			bufferPool.Put(buf)
+		}
+	}()
+	// 优化io.ReadAll的临时内存分配，改为对象池内bytes的复用
+	if _, err := io.Copy(buf, res.Body); err != nil {
+		return fmt.Errorf("reading response body: %v", err)
+	}
+	if err = proto.Unmarshal(buf.Bytes(), out); err != nil {
 		return fmt.Errorf("decoding response body: %v", err)
 	}
 	return nil

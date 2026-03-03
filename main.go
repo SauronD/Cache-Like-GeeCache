@@ -25,7 +25,7 @@ var db2 = map[string]string{
 
 var registryAddr = "http://localhost:9000"
 
-// 配置所有Group的连接
+// 配置所有Group的连接并进行bloomfilter的预热：
 func initDB(p *likecache.HTTPPool, dbs map[string]map[string]string) {
 	// 注册配置Group和db连接
 	for groupName, db := range dbs {
@@ -34,6 +34,13 @@ func initDB(p *likecache.HTTPPool, dbs map[string]map[string]string) {
 			panic(err)
 		}
 		g.RegisterPeers(p)
+
+		// 预热操作：
+		keys := []string{}
+		for key := range db {
+			keys = append(keys, key)
+		}
+		likecache.WarmUp(g, keys)
 	}
 
 }

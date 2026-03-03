@@ -4,6 +4,7 @@ import (
 	pb "Cache-Like-GeeCache/likecachepb"
 	"Cache-Like-GeeCache/singleflight"
 	"errors"
+	"fmt"
 	"log"
 	"sync"
 )
@@ -54,6 +55,19 @@ func NewGroup(name string, maxBytes int64, getter Getter) (*Group, error) {
 
 }
 
+// 预热group的bloomfilter：
+func WarmUp(g *Group, keys []string) {
+	for _, key := range keys {
+		g.bf.Add(key)
+	}
+	log.Printf("[Group %s] Bloom Filter warmed up with %d keys", g.name, len(keys))
+}
+func (g *Group) RegisterNewKey(key string) {
+	if g.bf != nil {
+		g.bf.Add(key)
+	}
+}
+
 func GetGroup(name string) *Group {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -68,11 +82,18 @@ func (g *Group) Get(key string) (ByteView, error) {
 	if key == "" {
 		return ByteView{}, errors.New("empty key")
 	}
+
 	// 先检查key是否在当前节点内存Cache中：此处会被并发请求
 	if value, ok := g.maincache.get(key); ok {
 		log.Println("[Cache] hit")
 		return value, nil
 	}
+	// 向外查询前先检查bloomfilter：
+	// 对于缓存穿透，虽然先检查maincache会导致锁竞争，但是实现了分段锁，理论上会被平分到256个分段锁的竞争上
+	if g.bf != nil && !g.bf.Contains(key) {
+		return ByteView{}, fmt.Errorf("bloom filter: key [%s] does not exist", key)
+	}
+
 	// key不存在，远程获取/回调函数getter获取数据：DB
 	return g.load(key)
 }
@@ -100,7 +121,7 @@ func (g *Group) load(key string) (ByteView, error) {
 			}
 
 		}
-		// key对应节点是当前节点或从远程节点获取失败时，比如目标节点下线，也在当前节点处拉去数据并缓存
+		// key对应节点是当前节点或从远程节点获取失败时，比如目标节点下线，也在当前节点处拉取数据并缓存
 		return g.getLocally(key)
 	})
 
