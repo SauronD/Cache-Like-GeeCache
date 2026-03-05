@@ -169,14 +169,16 @@ func (p *HTTPPool) Set(peers ...string) {
 // 查询registryPath,并检查是否有变化
 func (p *HTTPPool) updatePeers() {
 	res, err := http.Get(p.registryAddr)
-	defer func() { _ = res.Body.Close() }()
+
 	if err != nil {
 		log.Println("[HTTPPool] Sync error:", err.Error())
 		return
 	}
+	defer func() { _ = res.Body.Close() }()
 	alive := res.Header.Get("X-LikeCache-Servers")
 	if alive == "" {
 		log.Println("[HTTPPool] empty peers")
+		return
 	}
 	peers := strings.Split(alive, ",")
 	// 更新哈希环

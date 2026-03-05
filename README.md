@@ -21,7 +21,8 @@ New Feat1:多Group的管理
 
 New Feat2:热点key的缓存问题——缓存雪崩优化
 对于热点key的请求，在每个节点向其他节点请求时，用一个概率算法来决定是否将请求的节点在本地也保存一份，从而分散单个节点的请求处理压力
-
+将每个节点的cache分为两部分：maincache和hotcache，maincache保存该节点应该管理的数据(一致性哈希分配的数据)，hotcache处理从节点请求的hot key:
+每次向远程节点访问时，有1/x概率存入hotcache，对于经常访问的节点就有更大可能性被缓存
 
 
 New Feat3:通信协议换RPC

@@ -29,7 +29,7 @@ var registryAddr = "http://localhost:9000"
 func initDB(p *likecache.HTTPPool, dbs map[string]map[string]string) {
 	// 注册配置Group和db连接
 	for groupName, db := range dbs {
-		g, err := likecache.NewGroup(groupName, 2<<10, likecache.MapGetter(db))
+		g, err := likecache.NewGroup(groupName, 8<<20, likecache.MapGetter(db))
 		if err != nil {
 			panic(err)
 		}

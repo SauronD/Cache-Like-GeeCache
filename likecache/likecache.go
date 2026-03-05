@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"sync"
 )
 
@@ -25,8 +26,9 @@ func (f GetterFunc) Get(key string) ([]byte, error) {
 // likecache的主结构，负责与用户交互，并控制缓存值的存储、获取
 type Group struct {
 	name      string
-	getter    Getter //getter负责从数据源获取数据，比如从数据库获得数据
-	maincache *cache
+	getter    Getter              //getter负责从数据源获取数据，比如从数据库获得数据
+	maincache *cache              // 主缓存，存储所有该节点在一致性哈希中负责的数据
+	hotcache  *cache              // 副缓存，存储从其他节点处请求的热点数据
 	peers     PeerPicker          //peers.PeerPick(key)返回其应该问询的真实节点,peers在本项目中为*HTTPPool
 	loader    *singleflight.Group //控制请求的并发，即如果进行了一次请求，则期间所有后续相同的请求都等待这一请求返回结果
 	bf        *BloomFilter
@@ -43,10 +45,13 @@ func NewGroup(name string, maxBytes int64, getter Getter) (*Group, error) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
+	mainBytes := maxBytes * 8 / 10
+	hotBytes := maxBytes - mainBytes
 	g := &Group{
 		name:      name,
 		getter:    getter,
-		maincache: NewCache(maxBytes),
+		maincache: NewCache(mainBytes),
+		hotcache:  NewCache(hotBytes),
 		loader:    &singleflight.Group{},
 		bf:        NewBloomFilter(100000, 0.01),
 	}
@@ -83,9 +88,14 @@ func (g *Group) Get(key string) (ByteView, error) {
 		return ByteView{}, errors.New("empty key")
 	}
 
-	// 先检查key是否在当前节点内存Cache中：此处会被并发请求
+	// 先检查key是否在当前节点maincache中：此处会被并发请求
 	if value, ok := g.maincache.get(key); ok {
-		log.Println("[Cache] hit")
+		log.Println("[MainCache] hit")
+		return value, nil
+	}
+	// 其次检查key是否在当前节点hotcache中
+	if value, ok := g.hotcache.get(key); ok {
+		log.Println("[HotCache] hit")
 		return value, nil
 	}
 	// 向外查询前先检查bloomfilter：
@@ -132,19 +142,22 @@ func (g *Group) load(key string) (ByteView, error) {
 }
 
 func (g *Group) getLocally(key string) (ByteView, error) {
-	bytes, error := g.getter.Get(key)
-	if error != nil {
-		return ByteView{}, error
+	bytes, err := g.getter.Get(key)
+	if err != nil {
+		return ByteView{}, err
 	}
+	// cloneBytes复制[]byte的原因：虽然进行了一次GC，但如果g.getter.Get里对切片进行了切分[:x]，可以释放掉多余的内存
 	value := ByteView{cloneBytes(bytes)}
-	// 将获取的数据添加到内存数据结构Cache中
-	g.populateCache(key, value)
+	// 将获取的本地数据添加到maincache中
+	g.populateMainCache(key, value)
 	return value, nil
 }
-func (g *Group) populateCache(key string, value ByteView) {
+func (g *Group) populateMainCache(key string, value ByteView) {
 	g.maincache.add(key, value)
 }
-
+func (g *Group) populateHotCache(key string, value ByteView) {
+	g.hotcache.add(key, value)
+}
 func (g *Group) getFromPeer(peer PeerGetter, key string) (ByteView, error) {
 	// 构造序列化查询请求
 	req := &pb.Request{
@@ -157,5 +170,13 @@ func (g *Group) getFromPeer(peer PeerGetter, key string) (ByteView, error) {
 	if err != nil {
 		return ByteView{}, err
 	}
-	return ByteView{b: res.Value}, nil
+
+	value := ByteView{res.Value}
+	// 远程节点的请求结果，有0.1的可能性存入hotcache，如果是经常请求的key，则更有可能被存入hotcache
+	dice := rand.Intn(10)
+	log.Printf("[Debug] getFromPeer executed for key: %s, dice roll: %d\n", key, dice)
+	if dice == 0 {
+		g.populateHotCache(key, value)
+	}
+	return value, nil
 }

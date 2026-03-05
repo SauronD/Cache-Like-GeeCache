@@ -45,6 +45,10 @@ func (m *Map) Add(keys ...string) {
 
 // 缓存数据的key，计算其在哈希环上对应的虚拟节点哈希，并返回真实节点
 func (m *Map) Get(key string) string {
+	if len(m.keys) == 0 {
+		return ""
+	}
+
 	m.rw.RLock()
 	defer m.rw.RUnlock()
 	hash := m.hash([]byte(key))
