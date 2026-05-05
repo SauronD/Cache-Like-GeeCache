@@ -75,6 +75,7 @@ func (p *HTTPPool) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 对象池复用优化序列化
 	buf := sliceBytesPool.Get().(*[]byte)
 	defer func() {
+		// 只在底层数组容量不超过64KB时才继续复用
 		if cap(*buf) <= 64*1024 {
 			*buf = (*buf)[:0]
 			sliceBytesPool.Put(buf)
@@ -166,7 +167,7 @@ func (p *HTTPPool) Set(peers ...string) {
 
 }
 
-// 查询registryPath,并检查是否有变化
+// 向registryPath请求存活节点
 func (p *HTTPPool) updatePeers() {
 	res, err := http.Get(p.registryAddr)
 

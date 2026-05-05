@@ -1,3 +1,71 @@
+# Cache-Like-GeeCache
+
+> 一个类groupcache的分布式内存缓存中间件，基于对等的 P2P 架构，支持节点动态水平扩展。通过实现多级缓存隔离、一致性哈希路由寻址、并发访问控制以及注册中心服务发现，缓解高并发场景下的缓存击穿、缓存穿透及单节点热点倾斜等问题。
+
+## 关键特性
+- 节点注册与动态发现：自动处理节点的上/下线
+- singleflight请求合并：同一Key的并发回源只执行一次，缓解缓存击穿。
+- Bloom Filter防穿透：缓存未命中后先判定Key合法性，减少虚假Key回源概率。
+- 双层缓存结构：新增hotcache对对热点Key进行概率性副本缓存，分散热点压力。
+- 分段LRU锁优化：将缓存拆分为256个shard，降低全局锁竞争。
+- Protobuf编解码：节点间通信使用protobuf序列化，减少传输体积。
+- 内存复用：通过sync.Pool复用bytes.Buffer与[]byte，降低protobuf序列化/反序列化临时对象分配与GC压力。
+- 多Group统一管理升级：将Group作为系统运行前的统一配置，在每个节点创建一致的Group集合与对应getter，避免按Group分别维护节点列表和哈希环。这样可以保证同一Key在所有节点上的路由语义一致，降低多业务场景下的管理复杂度。
+
+## 运行
+
+### 环境要求
+
+- Go `1.23.5+`
+
+### 启动一个本地集群（多节点 + 注册中心 + API）
+
+```powershell
+# 终端1：节点1（同时启动注册中心）
+go run . -r -p 9001
+
+# 终端2：节点2
+go run . -p 9002
+
+# 终端3：节点3
+go run . -p 9003
+
+# 终端4：节点4（提供API）
+go run . -p 9004 -api
+```
+
+### 验证请求
+
+API 入口：`GET http://localhost:9999/api?group=<group>&key=<key>`
+
+示例：
+
+```bash
+curl "http://localhost:9999/api?group=scores&key=Tom"
+curl "http://localhost:9999/api?group=age&key=Jack"
+curl "http://localhost:9999/api?group=scores&key=Ghost"
+```
+
+说明：
+- scores组内置Tom/Jack/Sam
+- age组内置Tom/Jack/Sam
+- Ghost预期触发布隆过滤器拦截（不存在 key）
+
+### 运行测试
+
+可选：
+- Linux/macOS可直接运行项目自带集群脚本：`bash test.sh`
+- Windows可按需参考并发压测脚本：`test.ps1`
+
+
+## 致谢
+
+本项目基于以下项目进行学习与扩展：
+
+- geecache: https://github.com/geektutu/7days-golang/tree/master/gee-cache
+- groupcache: https://github.com/golang/groupcache
+
+---
 Feat1:singleflight优化缓存击穿、缓解缓存雪崩、处理不了缓存穿透
 singleflight实现了每个节点在向同一个节点请求一个相同的key时，这个节点并发的发送请求会被阻塞，等待当前的请求完成，避免一个key失效时，并发请求全部压到DB，造成数据库的压力过大的情况。也就是说被请求的节点在同一个时刻最多接收到当前所有节点数量个请求，启动相同数量个协程去内存中读取缓存的数据或从数据库中拉数据，这些请求同样会被singleflight阻塞，一瞬间最多只有一个协程在真正读取缓存数据或从数据库拉数据。
 因此有效解决了缓存击穿问题，因为失效的key只会有一个DB连接获取数据。缓解了缓存雪崩问题，如前所述，每个失效key都只会请求一次，减少了并发请求。但对于缓存穿透，比如构造海量不存在的key，被映射到不同节点上，每个节点都并发向db请求不同的key，singleflight就不起作用了。

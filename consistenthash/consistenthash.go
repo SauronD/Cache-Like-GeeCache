@@ -14,7 +14,7 @@ type Map struct {
 	rw       sync.RWMutex
 	hash     Hash
 	replicas int            // 真实节点->虚拟节点的倍数
-	keys     []int          // 模拟哈希环
+	keys     []int          // 一维数组模拟哈希环，二分查找第一个大于hash(key)的真实节点
 	hashMAP  map[int]string //key:虚拟节点,value:真实节点
 }
 
@@ -31,6 +31,7 @@ func New(replicas int, f Hash) *Map {
 	return m
 }
 
+// keys是所有存活的真实节点地址
 func (m *Map) Add(keys ...string) {
 	for _, key := range keys {
 		for i := 0; i < m.replicas; i++ {

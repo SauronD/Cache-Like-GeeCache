@@ -159,7 +159,7 @@ func (g *Group) populateHotCache(key string, value ByteView) {
 	g.hotcache.add(key, value)
 }
 func (g *Group) getFromPeer(peer PeerGetter, key string) (ByteView, error) {
-	// 构造序列化查询请求
+	// 构造序查询请求
 	req := &pb.Request{
 		Group: g.name,
 		Key:   key,

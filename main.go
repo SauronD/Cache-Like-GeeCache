@@ -35,7 +35,7 @@ func initDB(p *likecache.HTTPPool, dbs map[string]map[string]string) {
 		}
 		g.RegisterPeers(p)
 
-		// 预热操作：
+		// 布隆过滤器预热操作：
 		keys := []string{}
 		for key := range db {
 			keys = append(keys, key)

@@ -41,7 +41,7 @@ func (this *LRUCache) Get(key string) (Value, bool) {
 
 }
 
-// RemoveOldet
+// RemoveOldet：删除最后一个节点
 func (this *LRUCache) RemoveOldet() {
 	ele := this.ll.Back()
 	if ele != nil {

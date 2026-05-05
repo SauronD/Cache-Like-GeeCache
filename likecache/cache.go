@@ -37,8 +37,7 @@ func (c *cache) getShard(key string) *shard {
 	return c.shards[hash%uint32(defaultShardCount)]
 }
 
-// 对外暴露的add和get方法
-// 它们不再自己加锁，而是将任务代理给算出来的目标shard
+// 对外暴露的add和get函数
 func (c *cache) add(key string, value ByteView) {
 	shard := c.getShard(key)
 	shard.add(key, value)
