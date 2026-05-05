@@ -34,6 +34,53 @@ go run . -p 9003
 go run . -p 9004 -api
 ```
 
+```mermaid
+flowchart LR
+    C[Client] --> API[API Server :9999<br/>/api?group=&key=]
+
+    subgraph R[Registry Server :9000]
+      RS[Registry<br/>维护存活节点列表]
+    end
+
+    subgraph N1[Node-9001]
+      P1[HTTPPool<br/>节点通信 + 轮询Registry]
+      G11[Group:scores<br/>maincache + hotcache]
+      G12[Group:age<br/>maincache + hotcache]
+      P1 --- G11
+      P1 --- G12
+    end
+
+    subgraph N2[Node-9002]
+      P2[HTTPPool<br/>节点通信 + 轮询Registry]
+      G21[Group:scores<br/>maincache + hotcache]
+      G22[Group:age<br/>maincache + hotcache]
+      P2 --- G21
+      P2 --- G22
+    end
+
+    subgraph N3[Node-9003]
+      P3[HTTPPool<br/>节点通信 + 轮询Registry]
+      G31[Group:scores<br/>maincache + hotcache]
+      G32[Group:age<br/>maincache + hotcache]
+      P3 --- G31
+      P3 --- G32
+    end
+
+    API --> P1
+    P1 <-->|HTTP + Protobuf| P2
+    P1 <-->|HTTP + Protobuf| P3
+    P2 <-->|HTTP + Protobuf| P3
+
+    P1 -. 心跳上报 .-> RS
+    P2 -. 心跳上报 .-> RS
+    P3 -. 心跳上报 .-> RS
+
+    P1 -. 轮询存活列表 .-> RS
+    P2 -. 轮询存活列表 .-> RS
+    P3 -. 轮询存活列表 .-> RS
+
+```
+
 ### 验证请求
 
 API 入口：`GET http://localhost:9999/api?group=<group>&key=<key>`
